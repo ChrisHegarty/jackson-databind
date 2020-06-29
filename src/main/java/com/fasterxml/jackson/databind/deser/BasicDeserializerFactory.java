@@ -153,6 +153,7 @@ public abstract class BasicDeserializerFactory
         throws JsonMappingException
     {
         final DeserializationConfig config = ctxt.getConfig();
+        final boolean hasCustom = _factoryConfig.hasValueInstantiators();
 
         ValueInstantiator instantiator = null;
         // Check @JsonValueInstantiator before anything else
@@ -165,15 +166,28 @@ public abstract class BasicDeserializerFactory
             // Second: see if some of standard Jackson/JDK types might provide value
             // instantiators.
             instantiator = JDKValueInstantiators.findStdValueInstantiator(config, beanDesc.getBeanClass());
+
+            // Third: custom value instantiators via provider?
             if (instantiator == null) {
-                instantiator = _constructDefaultValueInstantiator(ctxt, beanDesc);
+                if (hasCustom) {
+                    for (ValueInstantiators insts : _factoryConfig.valueInstantiators()) {
+                        instantiator = insts.findValueInstantiator(config, beanDesc);
+                        if (instantiator != null) {
+                            break;
+                        }
+                    }
+                }
+                // Fourth: create default one, if no custom
+                if (instantiator == null) {
+                    instantiator = _constructDefaultValueInstantiator(ctxt, beanDesc);
+                }
             }
         }
 
         // finally: anyone want to modify ValueInstantiator?
-        if (_factoryConfig.hasValueInstantiators()) {
+        if (hasCustom) {
             for (ValueInstantiators insts : _factoryConfig.valueInstantiators()) {
-                instantiator = insts.findValueInstantiator(config, beanDesc, instantiator);
+                instantiator = insts.modifyValueInstantiator(config, beanDesc, instantiator);
                 // let's do sanity check; easier to spot buggy handlers
                 if (instantiator == null) {
                     ctxt.reportBadTypeDefinition(beanDesc,
@@ -182,6 +196,10 @@ public abstract class BasicDeserializerFactory
                 }
             }
         }
+        if (instantiator != null) {
+            instantiator = instantiator.createContextual(ctxt, beanDesc);
+        }
+
         return instantiator;
     }
 
@@ -1466,7 +1484,7 @@ nonAnnotatedParamIndex, ctor);
 
             ValueInstantiator valueInstantiator = _constructDefaultValueInstantiator(ctxt, beanDesc);
             SettableBeanProperty[] creatorProps = (valueInstantiator == null) ? null
-                    : valueInstantiator.getFromObjectArguments(ctxt);
+                    : valueInstantiator.getFromObjectArguments(config);
             // May have @JsonCreator for static factory method:
             for (AnnotatedMethod factory : beanDesc.getFactoryMethods()) {
                 if (_hasCreatorAnnotation(ctxt, factory)) {
@@ -1673,7 +1691,11 @@ factory.toString()));
                     if (returnType.isAssignableFrom(enumClass)) {
                         // note: mostly copied from 'EnumDeserializer.deserializerForCreator(...)'
                         if (factory.getRawParameterType(0) != String.class) {
-                            throw new IllegalArgumentException("Parameter #0 type for factory method ("+factory+") not suitable, must be java.lang.String");
+                            // [databind#2725]: Should not error out because (1) there may be good creator
+                            //   method and (2) this method may be valid for "regular" enum value deserialization
+                            // (leaving aside potential for multiple conflicting creators)
+//                            throw new IllegalArgumentException("Parameter #0 type for factory method ("+factory+") not suitable, must be java.lang.String");
+                            continue;
                         }
                         if (config.canOverrideAccessModifiers()) {
                             ClassUtil.checkAndFixAccess(factory.getMember(),

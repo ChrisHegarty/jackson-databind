@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.annotation.JacksonStdImpl;
 import com.fasterxml.jackson.databind.deser.NullValueProvider;
 import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
+import com.fasterxml.jackson.databind.type.LogicalType;
 import com.fasterxml.jackson.databind.util.AccessPattern;
 import com.fasterxml.jackson.databind.util.ObjectBuffer;
 
@@ -109,6 +110,11 @@ public class ObjectArrayDeserializer
         // Important: do NOT cache if polymorphic values, or if there are annotation-based
         // custom deserializers
         return (_elementDeserializer == null) && (_elementTypeDeserializer == null);
+    }
+
+    @Override // since 2.12
+    public LogicalType logicalType() {
+        return LogicalType.Array;
     }
 
     @Override
@@ -305,28 +311,22 @@ public class ObjectArrayDeserializer
     protected Object[] handleNonArray(JsonParser p, DeserializationContext ctxt)
         throws IOException
     {
-        // Empty String can become null...
-        if (p.hasToken(JsonToken.VALUE_STRING)
-                && ctxt.isEnabled(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT)) {
-            String str = p.getText();
-            if (str.length() == 0) {
-                return null;
-            }
-        }
-
         // Can we do implicit coercion to a single-element array still?
         boolean canWrap = (_unwrapSingle == Boolean.TRUE) ||
                 ((_unwrapSingle == null) &&
                         ctxt.isEnabled(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY));
         if (!canWrap) {
-            // One exception; byte arrays are generally serialized as base64, so that should be handled
-            JsonToken t = p.currentToken();
-            if (t == JsonToken.VALUE_STRING
-                    // note: not `byte[]`, but `Byte[]` -- former is primitive array
-                    && _elementClass == Byte.class) {
-                return deserializeFromBase64(p, ctxt);
+            // 2 exceptions with Strings:
+            if (p.hasToken(JsonToken.VALUE_STRING)) {
+                // One exception; byte arrays are generally serialized as base64, so that should be handled
+                // note: not `byte[]`, but `Byte[]` -- former is primitive array
+                if (_elementClass == Byte.class) {
+                    return deserializeFromBase64(p, ctxt);
+                }
+                // Second: empty (and maybe blank) String
+                return _deserializeFromString(p, ctxt);
             }
-            return (Object[]) ctxt.handleUnexpectedToken(getValueType(ctxt), p);
+            return (Object[]) ctxt.handleUnexpectedToken(_containerType, p);
         }
         JsonToken t = p.currentToken();
         Object value;

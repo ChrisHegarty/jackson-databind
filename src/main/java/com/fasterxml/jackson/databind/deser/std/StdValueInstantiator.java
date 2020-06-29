@@ -103,6 +103,14 @@ public class StdValueInstantiator
         _fromBooleanCreator = src._fromBooleanCreator;
     }
 
+    @Override
+    public ValueInstantiator createContextual(DeserializationContext ctxt,
+            BeanDescription beanDesc)
+        throws JsonMappingException
+    {
+        return this;
+    }
+
     /**
      * Method for setting properties related to instantiating values
      * from JSON Object. We will choose basically only one approach (out of possible
@@ -231,7 +239,7 @@ public class StdValueInstantiator
     }
 
     @Override
-    public SettableBeanProperty[] getFromObjectArguments(DeserializationContext ctxt) {
+    public SettableBeanProperty[] getFromObjectArguments(DeserializationConfig config) {
         return _constructorArguments;
     }
 
@@ -240,7 +248,7 @@ public class StdValueInstantiator
     /* Public API implementation; instantiation from JSON Object
     /**********************************************************************
      */
-    
+
     @Override
     public Object createUsingDefault(DeserializationContext ctxt) throws IOException
     {
@@ -300,17 +308,17 @@ public class StdValueInstantiator
     @Override
     public Object createFromString(DeserializationContext ctxt, String value) throws IOException
     {
-        if (_fromStringCreator == null) {
-            return _createFromStringFallbacks(ctxt, value);
+        if (_fromStringCreator != null) {
+            try {
+                return _fromStringCreator.call1(value);
+            } catch (Throwable t) {
+                return ctxt.handleInstantiationProblem(_fromStringCreator.getDeclaringClass(),
+                        value, rewrapCtorProblem(ctxt, t));
+            }
         }
-        try {
-            return _fromStringCreator.call1(value);
-        } catch (Throwable t) {
-            return ctxt.handleInstantiationProblem(_fromStringCreator.getDeclaringClass(),
-                    value, rewrapCtorProblem(ctxt, t));
-        }
+        return super.createFromString(ctxt, value);
     }
-    
+
     @Override
     public Object createFromInt(DeserializationContext ctxt, int value) throws IOException
     {
@@ -381,7 +389,7 @@ public class StdValueInstantiator
                     arg, rewrapCtorProblem(ctxt, t0));
         }
     }
-    
+
     /*
     /**********************************************************************
     /* Extended API: configuration mutators, accessors

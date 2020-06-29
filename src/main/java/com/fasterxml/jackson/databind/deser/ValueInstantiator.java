@@ -42,7 +42,31 @@ public abstract class ValueInstantiator
     public interface Gettable {
         public ValueInstantiator getValueInstantiator();
     }
-    
+
+    /*
+    /**********************************************************************
+    /* Life-cycle
+    /**********************************************************************
+     */
+
+    /**
+     * "Contextualization" method that is called after construction but before first
+     * use, to allow instantiator access to context needed to possible resolve its
+     * dependencies.
+     *
+     * @param ctxt Currently active deserialization context: needed to (for example)
+     *    resolving {@link com.fasterxml.jackson.databind.jsontype.TypeDeserializer}s.
+     *
+     * @return This instance, if no change, or newly constructed instance
+     *
+     * @throws JsonMappingException If there are issues with contextualization
+     *
+     * @since 3.0
+     */
+    public abstract ValueInstantiator createContextual(DeserializationContext ctxt,
+            BeanDescription beanDesc)
+        throws JsonMappingException;
+
     /*
     /**********************************************************************
     /* Metadata accessors
@@ -61,7 +85,7 @@ public abstract class ValueInstantiator
     public abstract String getValueTypeDesc();
 
     /**
-     * Method that will return true if any of <code>canCreateXxx</code> method
+     * Method that will return true if any of {@code canCreateXxx} method
      * returns true: that is, if there is any way that an instance could
      * be created.
      */
@@ -75,7 +99,10 @@ public abstract class ValueInstantiator
 
     /**
      * Method that can be called to check whether a String-based creator
-     * is available for this instantiator
+     * is available for this instantiator.
+     *<p>
+     * NOTE: does NOT include possible case of fallbacks, or coercion; only
+     * considers explicit creator.
      */
     public boolean canCreateFromString() { return false; }
 
@@ -140,11 +167,8 @@ public abstract class ValueInstantiator
      *<p>
      * NOTE: all properties will be of type
      * {@link com.fasterxml.jackson.databind.deser.CreatorProperty}.
-     *<p>
-     * NOTE: since 3.0, gets passed full {@link DeserializationContext},
-     * not just <code>DeserializationConfig</code>
      */
-    public SettableBeanProperty[] getFromObjectArguments(DeserializationContext ctxt) {
+    public SettableBeanProperty[] getFromObjectArguments(DeserializationConfig config) {
         return null;
     }
 
@@ -247,9 +271,12 @@ public abstract class ValueInstantiator
     /* Instantiation methods for JSON scalar types (String, Number, Boolean)
     /**********************************************************************
      */
-    
+
     public Object createFromString(DeserializationContext ctxt, String value) throws IOException {
-        return _createFromStringFallbacks(ctxt, value);
+        return ctxt.handleMissingInstantiator(getValueClass(), this, ctxt.getParser(),
+                "no String-argument constructor/factory method to deserialize from String value ('%s')",
+                value);
+
     }
 
     public Object createFromInt(DeserializationContext ctxt, int value) throws IOException {
@@ -327,58 +354,6 @@ public abstract class ValueInstantiator
 
     /*
     /**********************************************************************
-    /* Helper methods
-    /**********************************************************************
-     */
-
-    protected Object _createFromStringFallbacks(DeserializationContext ctxt, String value)
-            throws IOException
-    {
-        /* 28-Sep-2011, tatu: Ok this is not clean at all; but since there are legacy
-         *   systems that expect conversions in some cases, let's just add a minimal
-         *   patch (note: same could conceivably be used for numbers too).
-         */
-        if (canCreateFromBoolean()) {
-            String str = value.trim();
-            if ("true".equals(str)) {
-                return createFromBoolean(ctxt, true);
-            }
-            if ("false".equals(str)) {
-                return createFromBoolean(ctxt, false);
-            }
-        }
-        // also, empty Strings might be accepted as null Object...
-        if (value.length() == 0) {
-            if (ctxt.isEnabled(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT)) {
-                return null;
-            }
-        }
-        return ctxt.handleMissingInstantiator(getValueClass(), this, ctxt.getParser(),
-                "no String-argument constructor/factory method to deserialize from String value ('%s')",
-                value);
-    }
-
-    /*
-    /**********************************************************************
-    /* Std method overrides for testing
-    /**********************************************************************
-     */
-
-    /*
-    @Override
-    public String toString() {
-        return String.format(
-"(StdValueInstantiator: default=%s, delegate=%s, props=%s; str/int/long/double/boolean =  %s/%s/%s/%s/%s)",
-            canCreateUsingDefault(), canCreateUsingDelegate()
-            , canCreateFromObjectWith(), canCreateFromString()
-            , canCreateFromInt(), canCreateFromLong()
-            , canCreateFromDouble(), canCreateFromBoolean()
-            );
-    }
-*/
-
-    /*
-    /**********************************************************************
     /* Standard Base implementation
     /**********************************************************************
      */
@@ -397,6 +372,14 @@ public abstract class ValueInstantiator
 
         public Base(JavaType type) {
             _valueType = type.getRawClass();
+        }
+
+        @Override
+        public ValueInstantiator createContextual(DeserializationContext ctxt,
+                BeanDescription beanDesc)
+            throws JsonMappingException
+        {
+            return this;
         }
 
         @Override
@@ -422,9 +405,17 @@ public abstract class ValueInstantiator
         private static final long serialVersionUID = 1L;
 
         protected final ValueInstantiator _delegate;
-        
+
         protected Delegating(ValueInstantiator delegate) {
             _delegate = delegate;
+        }
+
+        @Override
+        public ValueInstantiator createContextual(DeserializationContext ctxt,  BeanDescription beanDesc)
+                throws JsonMappingException
+        {
+            ValueInstantiator d = _delegate.createContextual(ctxt, beanDesc);
+            return (d == _delegate) ? this : new Delegating(d);
         }
 
         protected ValueInstantiator delegate() { return _delegate; }
@@ -458,8 +449,8 @@ public abstract class ValueInstantiator
         public boolean canCreateFromObjectWith() { return delegate().canCreateFromObjectWith(); }
 
         @Override
-        public SettableBeanProperty[] getFromObjectArguments(DeserializationContext ctxt) {
-            return delegate().getFromObjectArguments(ctxt);
+        public SettableBeanProperty[] getFromObjectArguments(DeserializationConfig config) {
+            return delegate().getFromObjectArguments(config);
         }
 
         @Override
