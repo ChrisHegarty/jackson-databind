@@ -126,6 +126,13 @@ public class UnrolledBeanAsArraySerializer
     }
 
     @Override
+    protected BeanSerializerBase withProperties(BeanPropertyWriter[] properties,
+            BeanPropertyWriter[] filteredProperties) {
+        // Similar to regular as-array-serializer, let's NOT reorder properties
+        return this;
+    }
+
+    @Override
     protected BeanSerializerBase asArraySerializer() {
         return this; // already is one...
     }

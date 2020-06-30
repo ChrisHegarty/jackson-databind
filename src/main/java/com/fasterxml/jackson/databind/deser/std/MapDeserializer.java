@@ -15,10 +15,11 @@ import com.fasterxml.jackson.databind.deser.impl.PropertyValueBuffer;
 import com.fasterxml.jackson.databind.deser.impl.ReadableObjectId.Referring;
 import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
 import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
+import com.fasterxml.jackson.databind.type.LogicalType;
 import com.fasterxml.jackson.databind.util.ArrayBuilders;
 
 /**
- * Basic serializer that can take JSON "Object" structure and
+ * Basic deserializer that can take JSON "Object" structure and
  * construct a {@link java.util.Map} instance, with typed contents.
  *<p>
  * Note: for untyped content (one indicated by passing Object.class
@@ -225,7 +226,7 @@ public class MapDeserializer
             _delegateDeserializer = findDeserializer(ctxt, delegateType, null);
         }
         if (_valueInstantiator.canCreateFromObjectWith()) {
-            SettableBeanProperty[] creatorProps = _valueInstantiator.getFromObjectArguments(ctxt);
+            SettableBeanProperty[] creatorProps = _valueInstantiator.getFromObjectArguments(ctxt.getConfig());
             _propertyBasedCreator = PropertyBasedCreator.construct(ctxt, _valueInstantiator, creatorProps,
                     ctxt.isEnabled(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES));
         }
@@ -330,6 +331,11 @@ public class MapDeserializer
                 && (_ignorableProperties == null);
     }
 
+    @Override // since 2.12
+    public LogicalType logicalType() {
+        return LogicalType.Map;
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public Map<Object,Object> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException
@@ -346,23 +352,26 @@ public class MapDeserializer
                     getValueInstantiator(), p,
                     "no default constructor found");
         }
-        // Ok: must point to START_OBJECT, FIELD_NAME or END_OBJECT
-        JsonToken t = p.currentToken();
-        if (t != JsonToken.START_OBJECT && t != JsonToken.FIELD_NAME && t != JsonToken.END_OBJECT) {
-            // (empty) String may be ok however; or single-String-arg ctor
-            if (t == JsonToken.VALUE_STRING) {
-                return (Map<Object,Object>) _valueInstantiator.createFromString(ctxt, p.getText());
+        switch (p.currentTokenId()) {
+        case JsonTokenId.ID_START_OBJECT:
+        case JsonTokenId.ID_END_OBJECT:
+        case JsonTokenId.ID_FIELD_NAME:
+            final Map<Object,Object> result = (Map<Object,Object>) _valueInstantiator.createUsingDefault(ctxt);
+            if (_standardStringKey) {
+                _readAndBindStringKeyMap(p, ctxt, result);
+                return result;
             }
-            // slightly redundant (since String was passed above), but also handles empty array case:
-            return _deserializeFromEmpty(p, ctxt);
-        }
-        final Map<Object,Object> result = (Map<Object,Object>) _valueInstantiator.createUsingDefault(ctxt);
-        if (_standardStringKey) {
-            _readAndBindStringKeyMap(p, ctxt, result);
+            _readAndBind(p, ctxt, result);
             return result;
+        case JsonTokenId.ID_STRING:
+            // (empty) String may be ok however; or single-String-arg ctor
+            return _deserializeFromString(p, ctxt);
+        case JsonTokenId.ID_START_ARRAY:
+            // Empty array, or single-value wrapped in array?
+            return _deserializeFromArray(p, ctxt);
+        default:
         }
-        _readAndBind(p, ctxt, result);
-        return result;
+        return (Map<Object,Object>) ctxt.handleUnexpectedToken(getValueType(ctxt), p);
     }
 
     @SuppressWarnings("unchecked")

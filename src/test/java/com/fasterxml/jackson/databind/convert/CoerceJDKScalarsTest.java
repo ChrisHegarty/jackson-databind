@@ -1,20 +1,22 @@
-package com.fasterxml.jackson.databind.struct;
+package com.fasterxml.jackson.databind.convert;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringReader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 
-public class ScalarCoercionTest extends BaseMapTest
+// Tests for "old" coercions (pre-2.12), with `MapperFeature.ALLOW_COERCION_OF_SCALARS`
+public class CoerceJDKScalarsTest extends BaseMapTest
 {
     static class BooleanPOJO {
-        public boolean value;
+        public Boolean value;
     }
 
     private final ObjectMapper COERCING_MAPPER = jsonMapperBuilder()
@@ -55,6 +57,7 @@ public class ScalarCoercionTest extends BaseMapTest
 
         _verifyNullOkFromEmpty(BigInteger.class, null);
         _verifyNullOkFromEmpty(BigDecimal.class, null);
+        _verifyNullOkFromEmpty(AtomicBoolean.class, null);
     }
 
     private void _verifyNullOkFromEmpty(Class<?> type, Object exp) throws IOException
@@ -91,6 +94,7 @@ public class ScalarCoercionTest extends BaseMapTest
 
         _verifyNullFail(BigInteger.class);
         _verifyNullFail(BigDecimal.class);
+        _verifyNullFail(AtomicBoolean.class);
     }
 
     private void _verifyNullFail(Class<?> type) throws IOException
@@ -100,7 +104,6 @@ public class ScalarCoercionTest extends BaseMapTest
             fail("Should have failed for "+type);
         } catch (MismatchedInputException e) {
             verifyException(e, "Cannot coerce empty String");
-            verifyException(e, "Null value for");
         }
     }
 
@@ -110,7 +113,7 @@ public class ScalarCoercionTest extends BaseMapTest
     /**********************************************************
      */
 
-    public void testStringCoercionOk() throws Exception
+    public void testStringCoercionOkBoolean() throws Exception
     {
         // first successful coercions. Boolean has a ton...
         _verifyCoerceSuccess("1", Boolean.TYPE, Boolean.TRUE);
@@ -119,13 +122,20 @@ public class ScalarCoercionTest extends BaseMapTest
         _verifyCoerceSuccess(quote("true"), Boolean.class, Boolean.TRUE);
         _verifyCoerceSuccess(quote("True"), Boolean.TYPE, Boolean.TRUE);
         _verifyCoerceSuccess(quote("True"), Boolean.class, Boolean.TRUE);
+        _verifyCoerceSuccess(quote("TRUE"), Boolean.TYPE, Boolean.TRUE);
+        _verifyCoerceSuccess(quote("TRUE"), Boolean.class, Boolean.TRUE);
         _verifyCoerceSuccess("0", Boolean.TYPE, Boolean.FALSE);
         _verifyCoerceSuccess("0", Boolean.class, Boolean.FALSE);
         _verifyCoerceSuccess(quote("false"), Boolean.TYPE, Boolean.FALSE);
         _verifyCoerceSuccess(quote("false"), Boolean.class, Boolean.FALSE);
         _verifyCoerceSuccess(quote("False"), Boolean.TYPE, Boolean.FALSE);
         _verifyCoerceSuccess(quote("False"), Boolean.class, Boolean.FALSE);
+        _verifyCoerceSuccess(quote("FALSE"), Boolean.TYPE, Boolean.FALSE);
+        _verifyCoerceSuccess(quote("FALSE"), Boolean.class, Boolean.FALSE);
+    }
 
+    public void testStringCoercionOkNumbers() throws Exception
+    {
         _verifyCoerceSuccess(quote("123"), Byte.TYPE, Byte.valueOf((byte) 123));
         _verifyCoerceSuccess(quote("123"), Byte.class, Byte.valueOf((byte) 123));
         _verifyCoerceSuccess(quote("123"), Short.TYPE, Short.valueOf((short) 123));
@@ -141,12 +151,27 @@ public class ScalarCoercionTest extends BaseMapTest
 
         _verifyCoerceSuccess(quote("123"), BigInteger.class, BigInteger.valueOf(123));
         _verifyCoerceSuccess(quote("123.0"), BigDecimal.class, new BigDecimal("123.0"));
+
+        AtomicBoolean ab = COERCING_MAPPER.readValue(quote("true"), AtomicBoolean.class);
+        assertNotNull(ab);
+        assertTrue(ab.get());
     }
 
-    public void testStringCoercionFail() throws Exception
+    public void testStringCoercionFailBoolean() throws Exception
     {
         _verifyRootStringCoerceFail("true", Boolean.TYPE);
         _verifyRootStringCoerceFail("true", Boolean.class);
+        _verifyRootStringCoerceFail("True", Boolean.TYPE);
+        _verifyRootStringCoerceFail("True", Boolean.class);
+        _verifyRootStringCoerceFail("TRUE", Boolean.TYPE);
+        _verifyRootStringCoerceFail("TRUE", Boolean.class);
+
+        _verifyRootStringCoerceFail("false", Boolean.TYPE);
+        _verifyRootStringCoerceFail("false", Boolean.class);
+    }
+
+    public void testStringCoercionFailInteger() throws Exception
+    {
         _verifyRootStringCoerceFail("123", Byte.TYPE);
         _verifyRootStringCoerceFail("123", Byte.class);
         _verifyRootStringCoerceFail("123", Short.TYPE);
@@ -155,6 +180,10 @@ public class ScalarCoercionTest extends BaseMapTest
         _verifyRootStringCoerceFail("123", Integer.class);
         _verifyRootStringCoerceFail("123", Long.TYPE);
         _verifyRootStringCoerceFail("123", Long.class);
+    }
+
+    public void testStringCoercionFailFloat() throws Exception
+    {
         _verifyRootStringCoerceFail("123.5", Float.TYPE);
         _verifyRootStringCoerceFail("123.5", Float.class);
         _verifyRootStringCoerceFail("123.5", Double.TYPE);
@@ -164,28 +193,38 @@ public class ScalarCoercionTest extends BaseMapTest
         _verifyRootStringCoerceFail("123.0", BigDecimal.class);
     }
 
+    // [databind#2635], [databind#2770]
     public void testToBooleanCoercionFailBytes() throws Exception
     {
         final String beanDoc = aposToQuotes("{'value':1}");
         _verifyBooleanCoerceFail("1", true, JsonToken.VALUE_NUMBER_INT, "1", Boolean.TYPE);
         _verifyBooleanCoerceFail("1", true, JsonToken.VALUE_NUMBER_INT, "1", Boolean.class);
         _verifyBooleanCoerceFail(beanDoc, true, JsonToken.VALUE_NUMBER_INT, "1", BooleanPOJO.class);
+
+        _verifyBooleanCoerceFail("1.25", true, JsonToken.VALUE_NUMBER_FLOAT, "1.25", Boolean.TYPE);
+        _verifyBooleanCoerceFail("1.25", true, JsonToken.VALUE_NUMBER_FLOAT, "1.25", Boolean.class);
     }
 
+    // [databind#2635], [databind#2770]
     public void testToBooleanCoercionFailChars() throws Exception
     {
         final String beanDoc = aposToQuotes("{'value':1}");
         _verifyBooleanCoerceFail("1", false, JsonToken.VALUE_NUMBER_INT, "1", Boolean.TYPE);
         _verifyBooleanCoerceFail("1", false, JsonToken.VALUE_NUMBER_INT, "1", Boolean.class);
         _verifyBooleanCoerceFail(beanDoc, false, JsonToken.VALUE_NUMBER_INT, "1", BooleanPOJO.class);
+
+        _verifyBooleanCoerceFail("1.25", false, JsonToken.VALUE_NUMBER_FLOAT, "1.25", Boolean.TYPE);
+        _verifyBooleanCoerceFail("1.25", false, JsonToken.VALUE_NUMBER_FLOAT, "1.25", Boolean.class);
     }
 
     public void testMiscCoercionFail() throws Exception
     {
         // And then we have coercions from more esoteric types too
 
-        _verifyCoerceFail("65", Character.class);
-        _verifyCoerceFail("65", Character.TYPE);
+        _verifyCoerceFail("65", Character.class,
+                "Cannot coerce Integer value (65) to `java.lang.Character` value");
+        _verifyCoerceFail("65", Character.TYPE,
+                "Cannot coerce Integer value (65) to `char` value");
     }
 
     /*
@@ -201,16 +240,15 @@ public class ScalarCoercionTest extends BaseMapTest
         assertEquals(exp, result);
     }
 
-    private void _verifyCoerceFail(String input, Class<?> type) throws IOException
+    private void _verifyCoerceFail(String input, Class<?> type,
+            String... expMatches) throws IOException
     {
         try {
             NOT_COERCING_MAPPER.readerFor(type)
                 .readValue(input);
             fail("Should not have allowed coercion");
         } catch (MismatchedInputException e) {
-            verifyException(e, "Cannot coerce ");
-            verifyException(e, " for type `");
-            verifyException(e, "enable `MapperFeature.ALLOW_COERCION_OF_SCALARS` to allow");
+            verifyException(e, expMatches);
         }
     }
 
@@ -237,8 +275,8 @@ public class ScalarCoercionTest extends BaseMapTest
             fail("Should not have allowed coercion");
         } catch (MismatchedInputException e) {
             verifyException(e, "Cannot coerce ");
-            verifyException(e, " for type `");
-            verifyException(e, "enable `MapperFeature.ALLOW_COERCION_OF_SCALARS` to allow");
+            verifyException(e, " to `");
+            verifyException(e, "` value");
 
             assertNotNull(e.getProcessor());
             assertSame(p, e.getProcessor());
@@ -273,9 +311,8 @@ public class ScalarCoercionTest extends BaseMapTest
     private void _verifyBooleanCoerceFailReason(MismatchedInputException e,
             JsonToken tokenType, String tokenValue) throws IOException
     {
-        verifyException(e, "Cannot coerce ");
-        verifyException(e, " for type `");
-        verifyException(e, "enable `MapperFeature.ALLOW_COERCION_OF_SCALARS` to allow");
+        // 2 different possibilities here
+        verifyException(e, "Cannot coerce Integer value", "Cannot deserialize value of type `");
 
         JsonParser p = (JsonParser) e.getProcessor();
 
@@ -286,7 +323,7 @@ public class ScalarCoercionTest extends BaseMapTest
         if (!tokenValue.equals(text)) {
             String textDesc = (text == null) ? "NULL" : quote(text);
             fail("Token text ("+textDesc+") via parser of type "+p.getClass().getName()
-                    +" not as expected ("+quote(tokenValue)+")");
+                    +" not as expected ("+quote(tokenValue)+"); exception message: '"+e.getMessage()+"'");
         }
     }
 }

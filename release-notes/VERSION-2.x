@@ -6,24 +6,71 @@ Project: jackson-databind
 
 2.12.0 (not yet released)
 
-#792: Deserialization Not Working Right with Generic Types and Builders
+#921: Deserialization Not Working Right with Generic Types and Builders
  (reported by Mike G; fix contributed by Ville K)
+#1852: Allow case insensitive deserialization of String value into
+  `boolean`/`Boolean` (esp for Excel)
+ (requested by Patrick J)
 #1886: Allow use of `@JsonFormat(with=JsonFormat.Feature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)`
   on Class
 #1919: Abstract class included as part of known type ids for error message
   when using JsonSubTypes
  (reported by Incara@github)
+#2066: Distinguish null from empty string for UUID deserialization
+ (requested by leonshaw@github)
 #2091: `ReferenceType` does not expose valid containedType
  (reported by Nate B)
+#2113: Add `CoercionConfig[s]` mechanism for configuring allowed coercions
+#2118: `JsonProperty.Access.READ_ONLY` does not work with "getter-as-setter" `Collection`s
+ (reported by Xiang Z)
+#2283: `JsonProperty.Access.READ_ONLY` fails with collections when a property name is specified
+ (reported by Yona A)
 #2675: Support use of `Void` valued properties (`MapperFeature.ALLOW_VOID_VALUED_PROPERTIES`)
 #2683: Explicitly fail (de)serialization of `java.time.*` types in absence of
   registered custom (de)serializers
 #2707: Improve description included in by `DeserializationContext.handleUnexpectedToken()`
+#2719: `FAIL_ON_IGNORED_PROPERTIES` does not throw on `READONLY` properties with
+  an explicit name
+ (reported, fix contributed by David B)
+#2726: Add Gradle Module Metadata for version alignment with Gradle 6
+ (contributed by Jendrik J)
+#2732: Allow `JsonNode` auto-convert into `ArrayNode` if duplicates found (for XML)
+#2733: Allow values of "untyped" auto-convert into `List` if duplicates found (for XML)
+#2751: Add `ValueInstantiator.createContextual(...)
+- Add `BeanDeserializerBase.isCaseInsensitive()`
+- Some refactoring of `CollectionDeserializer` to solve CSV array handling issues
 
 2.11.1 (not yet released)
 
+-
+
+2.11.1 (25-Jun-2020)
+
 #2486: Builder Deserialization with JsonCreator Value vs Array
  (reported by Ville K)
+#2725: JsonCreator on static method in Enum and Enum used as key in map
+  fails randomly
+ (reported by Michael C)
+#2755: `StdSubtypeResolver` is not thread safe (possibly due to copy
+  not being made with `ObjectMapper.copy()`)
+ (reported by tjwilson90@github)
+#2757: "Conflicting setter definitions for property" exception for `Map`
+  subtype during deserialization
+ (reported by Frank S)
+#2758: Fail to deserialize local Records
+ (reported by Johannes K)
+#2759: Rearranging of props when property-based generator is in use leads
+  to incorrect output
+ (reported by Oleg C)
+#2760: Jackson doesn't respect `CAN_OVERRIDE_ACCESS_MODIFIERS=false` for
+  deserializer properties
+ (reported by Johannes K)
+#2767: `DeserializationFeature.UNWRAP_SINGLE_VALUE_ARRAYS` don't support `Map`
+  type field
+ (reported by abomb4@github)
+#2770: JsonParser from MismatchedInputException cannot getText() for
+  floating-point value
+ (reported by João G)
 
 2.11.0 (26-Apr-2020)
 
@@ -72,6 +119,8 @@ Project: jackson-databind
  (reported by robotmrv@github)
 #2632: Failure to resolve generic type parameters on serialization
  (reported by Simone D)
+#2635: JsonParser cannot getText() for input stream on MismatchedInputException
+ (reported by João G)
 #2636: ObjectReader readValue lacks Class<T> argument
  (contributed by Robin R)
 #2643: Change default textual serialization of `java.util.Date`/`Calendar`
@@ -111,72 +160,6 @@ Project: jackson-databind
 
 #2101: `FAIL_ON_NULL_FOR_PRIMITIVES` failure does not indicate field name in exception message
  (reported by raderio@github)
-
-2.9.10.5 (not yet released)
-
-#2688: Block one more gadget type (apache-drill)
- (reported by Topsec(tcc))
-#2698: Block one more gadget type (weblogic/oracle-aqjms)
- (reported by Fangrun Li)
-#2704: Block one more gadget type (weblogic/oracle-aqjms)
- (reported by XuYuanzhen)
-
-2.9.10.4 (11-Apr-2020)
-
-#2631: Block one more gadget type (shaded-hikari-config, CVE-2020-9546)
- (reported by threedr3am & LFY)
-#2634: Block two more gadget types (ibatis-sqlmap, anteros-core; CVE-2020-9547 / CVE-2020-9548)
- (reported by threedr3am & V1ZkRA)
-#2642: Block one more gadget type (javax.swing, CVE-2020-10969)
- (reported by threedr3am)
-#2648: Block one more gadget type (shiro-core)
-#2653: Block one more gadget type (shiro-core)
-#2658: Block one more gadget type (ignite-jta, CVE-2020-10650)
- (reported by Srikanth Ramu, threedr3am'follower)
-#2659: Block one more gadget type (aries.transaction.jms, CVE-2020-10672)
- (reported by Srikanth Ramu)
-#2660: Block one more gadget type (caucho-quercus, CVE-2020-10673)
- (reported by threedr3am'follower)
-#2662: Block one more gadget type (bus-proxy, CVE-2020-10968)
- (reported by XuYuanzhen)
-#2664: Block one more gadget type (activemq-pool[-jms], CVE-2020-11111)
- (reported by Srikanth Ramu)
-#2666: Block one more gadget type (apache/commons-proxy, CVE-2020-11112)
- (reported by Yiting Fan)
-#2670: Block one more gadget type (openjpa, CVE-2020-11113)
- (reported by XuYuanzhen)
-#2680: Block one more gadget type (SSRF, spring-aop, CVE-2020-11619)
-#2682: Block one more gadget type (commons-jelly, CVE-2020-11620)
-
-2.9.10.3 (23-Feb-2020)
-
-#2620: Block one more gadget type (xbean-reflect/JNDI - CVE-2020-8840)
- (reported by threedr3am@github)
-
-2.9.10.2 (03-Jan-2020)
-
-#2526: Block two more gadget types (ehcache/JNDI - CVE-2019-20330)
-  (repoerted by UltramanGaia)
-#2544: java.lang.NoClassDefFoundError Thrown for compact profile1
-  (reported by Jon A)
-#2553: JsonDeserialize(contentAs=...) broken with raw collections
- (reported by cpopp@github)
-#2556: Contention in `TypeNameIdResolver.idFromClass()`
- (reported by Fabian L)
-#2560: Check `WRAP_EXCEPTIONS` in `CollectionDeserializer.handleNonArray()`
- (reported by Stefan W)
-#2564: Fix `IllegalArgumentException` on empty input collection for `ArrayBlockingQueue`
- (reported, fix suggested by yamert89@github)
-#2566: `MissingNode.toString()` returns `null` (4 character token) instead of empty string
- (reported by Greg A)
-#2567: Incorrect target type for arrays when providing nulls and nulls are disabled
- (reported by João G)
-#2573: Problem with `JsonInclude` config overrides for `java.util.Map`
- (reported by SukruthKS@github)
-#2576: Fail to serialize `Enum` instance which includes a method override
-  as POJO (shape = Shape.OBJECT)
- (reported by ylhuang-veeva@github)
-- Fix an issue with `ObjectReader.with(JsonParser.Feature)` (and related) not working
 
 2.10.1 (09-Nov-2019)
 
@@ -256,7 +239,7 @@ Project: jackson-databind
 #2241: Add `PropertyNamingStrategy.LOWER_DOT_CASE` for dot-delimited names
  (contributed by zenglian@github.com)
 #2251: Getter that returns an abstract collection breaks a delegating `@JsonCreator`
-#2265: Inconsistent handling of Collections$UnmodifiableList vs Collections$UnmodifiableRandomAccessListq
+#2265: Inconsistent handling of Collections$UnmodifiableList vs Collections$UnmodifiableRandomAccessList
 #2273: Add basic Java 9+ module info
 #2280: JsonMerge not work with constructor args
  (reported by Deblock T)
